@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ぶつかりおじさんバスター</title>
+<meta name="description" content="突っ込んでくるおじさんに、タイミングよく体当たりを返してぶっとばすブラウザゲーム。全5ステージの通常モードと、距離でランキングを競うエンドレスモード。無料、登録なしで遊べます。">
+<meta name="theme-color" content="#FFD200">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ぶつかりおじさんバスター">
+<meta property="og:description" content="突っ込んでくるおじさんに、タイミングよく体当たりを返してぶっとばすブラウザゲーム。距離でランキングを競おう。">
+<meta property="og:url" content="https://butsukari-ojisan-buster.kirakun.com/">
+<meta property="og:image" content="https://butsukari-ojisan-buster.kirakun.com/og.png">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://butsukari-ojisan-buster.kirakun.com/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Reggae+One&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<noscript><p class="noscript">このゲームを遊ぶには JavaScript を有効にしてください。</p></noscript>
+<main id="stage">
+  <canvas id="game" role="img" aria-label="ゲーム画面"></canvas>
+  <button id="pauseBtn" class="icon-btn" type="button" aria-label="一時停止" hidden>
+    <span aria-hidden="true"></span><span aria-hidden="true"></span>
+  </button>
+
+  <section id="title" class="screen" aria-labelledby="titleHead">
+    <div class="title-panel">
+      <h1 id="titleHead"><span>ぶつかり</span><span>おじさん</span><span class="buster">バスター</span></h1>
+      <p class="howto">突っ込んでくるおじさんを、体当たりでぶっとばせ。</p>
+    </div>
+    <div class="title-actions">
+      <button id="startBtn" class="btn btn-main mode-btn" type="button">
+        <span class="mode-name">通常モード</span><span class="mode-sub">全5ステージのおじさんをぶっとばす</span>
+      </button>
+      <div class="stations" id="stations" role="group" aria-label="通常モードで始めるステージ"></div>
+      <button id="endlessBtn" class="btn btn-main mode-btn mode-alt" type="button">
+        <span class="mode-name">エンドレスモード</span><span class="mode-sub">体幹3で距離を伸ばしランキングを競う</span>
+      </button>
+      <div class="btn-row">
+        <button id="guideBtn" class="btn" type="button">遊び方</button>
+        <button id="shopBtn" class="btn" type="button">鍛える</button>
+        <button id="zukanBtn" class="btn" type="button">図鑑</button>
+        <button id="rankingBtn" class="btn" type="button">ランキング</button>
+      </div>
+      <div class="toggles">
+        <button id="soundBtn" class="chip" type="button"></button>
+        <button id="fxBtn" class="chip" type="button"></button>
+        <span id="bestLabel" class="best"></span>
+      </div>
+    </div>
+  </section>
+
+  <section id="pause" class="screen veil" aria-labelledby="pauseHead" hidden>
+    <div class="veil-card">
+      <h2 id="pauseHead">一時停止</h2>
+      <button id="resumeBtn" class="btn btn-main" type="button">続ける</button>
+      <div class="toggles">
+        <button id="soundBtn2" class="chip" type="button"></button>
+        <button id="fxBtn2" class="chip" type="button"></button>
+      </div>
+      <button id="quitBtn" class="btn" type="button">やめてタイトルへ</button>
+    </div>
+  </section>
+
+  <section id="shop" class="screen sheet" aria-labelledby="shopHead" hidden>
+    <div class="sheet-inner">
+      <header class="sheet-head">
+        <h2 id="shopHead">鍛える</h2>
+        <p class="wallet">バスター手当 <b id="wallet"></b></p>
+      </header>
+      <div class="shop-body">
+        <figure class="preview">
+          <canvas id="shopPreview" width="640" height="440" role="img" aria-label="アバターと判定の輪"></canvas>
+          <figcaption id="shopNext"></figcaption>
+        </figure>
+        <ul id="shopList" class="shop-list"></ul>
+      </div>
+      <div class="sheet-actions">
+        <button id="shopDone" class="btn btn-main" type="button"></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="zukan" class="screen sheet" aria-labelledby="zukanHead" hidden>
+    <div class="sheet-inner wide">
+      <header class="sheet-head">
+        <h2 id="zukanHead">おじさん図鑑</h2>
+        <p class="wallet" id="zukanCount"></p>
+      </header>
+      <div id="zukanGrid" class="zukan-grid"></div>
+      <div class="sheet-actions">
+        <button id="zukanClose" class="btn btn-main" type="button">戻る</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="guide" class="screen sheet" aria-labelledby="guideHead" hidden>
+    <div class="sheet-inner wide">
+      <header class="sheet-head">
+        <h2 id="guideHead">遊び方</h2>
+        <div class="tabs" role="tablist" aria-label="遊ぶ端末">
+          <button id="guideTabPc" class="tab" type="button" role="tab" aria-controls="guideBody">PC</button>
+          <button id="guideTabSp" class="tab" type="button" role="tab" aria-controls="guideBody">スマホ</button>
+        </div>
+      </header>
+      <div id="guideBody" role="tabpanel" aria-labelledby="guideHead"></div>
+      <div class="sheet-actions">
+        <button id="guideClose" class="btn btn-main" type="button">戻る</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="ranking" class="screen sheet" aria-labelledby="rankingHead" hidden>
+    <div class="sheet-inner">
+      <header class="sheet-head">
+        <h2 id="rankingHead">エンドレスランキング</h2>
+        <div class="tabs" role="tablist" aria-label="表示する記録">
+          <button id="rankTabOnline" class="tab" type="button" role="tab" aria-controls="rankingList">みんな</button>
+          <button id="rankTabLocal" class="tab" type="button" role="tab" aria-controls="rankingList">この端末</button>
+        </div>
+      </header>
+      <p id="rankingStatus" class="status" role="status"></p>
+      <ol id="rankingList" class="rank-list"></ol>
+      <form id="nameForm" class="name-form" hidden>
+        <label for="nameInput">ランキングに出す名前</label>
+        <div class="name-row">
+          <input id="nameInput" type="text" maxlength="12" autocomplete="off" placeholder="12文字まで">
+          <button class="btn" type="submit">変更する</button>
+        </div>
+        <p class="name-note">名前は全員に公開されます。本名や連絡先は入れないでください。</p>
+      </form>
+      <div class="sheet-actions">
+        <button id="rankingClose" class="btn btn-main" type="button">戻る</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="result" class="screen veil" aria-labelledby="resultHead" hidden>
+    <article class="result-card">
+      <header class="result-top">
+        <div>
+          <h2 id="resultHead"></h2>
+          <p id="resultBody" class="result-body"></p>
+        </div>
+        <canvas id="resultArt" width="150" height="150" aria-hidden="true"></canvas>
+      </header>
+      <div class="result-main">
+        <p class="result-label">ぶっとばし距離</p>
+        <p id="resultDist" class="result-dist"></p>
+        <p id="resultCompare" class="result-label"></p>
+      </div>
+      <dl class="result-rows" id="resultRows"></dl>
+      <p id="resultStatus" class="status" role="status" hidden></p>
+      <form id="resultForm" class="name-form" hidden>
+        <label for="resultName">ランキングに出す名前</label>
+        <div class="name-row">
+          <input id="resultName" type="text" maxlength="12" autocomplete="off" placeholder="12文字まで">
+          <button class="btn" type="submit">登録する</button>
+        </div>
+        <p class="name-note">名前は全員に公開されます。本名や連絡先は入れないでください。</p>
+      </form>
+      <div class="result-actions">
+        <button id="retryBtn" class="btn btn-main" type="button"></button>
+        <div class="btn-row">
+          <button id="resultRanking" class="btn" type="button" hidden>ランキング</button>
+          <button id="resultShop" class="btn" type="button">鍛える</button>
+          <button id="resultZukan" class="btn" type="button">図鑑</button>
+          <button id="resultTitle" class="btn" type="button">タイトルへ</button>
+        </div>
+      </div>
+    </article>
+  </section>
+</main>
+<script src="js/rules.js"></script>
+<script src="js/art.js"></script>
+<script src="js/scenes.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/guide.js"></script>
+<script src="js/ranking.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

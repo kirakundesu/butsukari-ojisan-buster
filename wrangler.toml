@@ -1,0 +1,68 @@
+name = "butsukari-ojisan-buster"
+main = "worker/index.mjs"
+compatibility_date = "2026-10-01"
+
+# 公開先は独自ドメインだけにする
+workers_dev = false
+routes = [
+  { pattern = "butsukari-ojisan-buster.kirakun.com", custom_domain = true },
+]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "butsukari-ojisan-buster"
+database_id = "5a39f187-e8ae-4d95-b698-e922b65b0a29"
+migrations_dir = "migrations"
+
+# wrangler dev で URL を本番のドメイン名に書き換えさせない
+[dev]
+host = "localhost:8787"
+
+# API 全体は、同じ接続元につき 1 分 60 回まで
+[[ratelimits]]
+name = "API_LIMIT"
+namespace_id = "1001"
+
+[ratelimits.simple]
+limit = 60
+period = 60
+
+# 記録の送信と名前の変更は、同じ接続元につき 1 分 10 回まで
+[[ratelimits]]
+name = "SCORE_LIMIT"
+namespace_id = "1002"
+
+[ratelimits.simple]
+limit = 10
+period = 60
+
+# 遊びの開始は、同じ接続元につき 1 分 20 回まで。開始のたびに D1 へ書き込むため
+[[ratelimits]]
+name = "RUN_LIMIT"
+namespace_id = "1003"
+
+[ratelimits.simple]
+limit = 20
+period = 60
+
+# IPv6 は /48 全体でも 1 分 600 回まで。/64 を変えながら来る相手のため
+[[ratelimits]]
+name = "NET_LIMIT"
+namespace_id = "1004"
+
+[ratelimits.simple]
+limit = 600
+period = 60
+
+# 毎日 3:30（日本時間）に古いデータを掃除する
+[triggers]
+crons = ["30 18 * * *"]
+
+# エラーやアクセスのログをダッシュボードで見られるようにする
+[observability]
+enabled = true
