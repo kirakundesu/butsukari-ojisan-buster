@@ -19,7 +19,9 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const { SQUASH, TYPES, LINES, STAGES, UPGRADES, DEX } = Rules;
   const FONT = Art.FONT;
-  const TOUCH_OFFSET = 72; // 指でアバターが隠れないよう、指より上に置く（CSS px）
+  const TOUCH_GAIN = 1.5; // なぞった距離の何倍動くか。小さな動きで画面の端まで届くように
+  const TOUCH_SLIDE = 10; // 指がこれより動いたら、タップではなくなぞる操作とみなす（CSS px）
+  const THUMB_PAD = 0.2; // 縦画面の下のこの割合は、親指を置く帯にする
 
   // ---- セーブ ----
   const SAVE_KEY = 'butsukari-buster-save-v1';
@@ -140,8 +142,10 @@
   let distPop = -10;
   let lastRank = 0;
   let demoNext = 0;
-  let followId = null;
   let pointer = null;
+  let touchMode = coarse; // 指で遊んでいるか。途中で指を使ったら切り替える
+  const touches = new Map(); // 触れている指ごとの状態
+  let slideId = null; // 主人公を動かしている指
   let bankedDistance = 0;
   let sceneTimer = null;
   let lastMash = 0;
@@ -222,8 +226,19 @@
         run.spawnSides = ['right', 'bottom'];
       }
     } else {
-      run.setBounds({ x0: 0, x1: view.W, z0: 0, d: view.depth });
+      // 縦画面の指の操作では、親指で敵が隠れないよう、おじさんと主人公は下の帯より上で動く
+      const pad = usesThumbPad();
+      run.setBounds({ x0: 0, x1: view.W, z0: 0, d: pad ? (padTop() - view.ft) / SQUASH : view.depth });
+      run.spawnSides = pad ? ['left', 'right'] : ['left', 'right', 'bottom'];
     }
+  }
+
+  function usesThumbPad() {
+    return touchMode && view.portrait;
+  }
+
+  function padTop() {
+    return view.H * (1 - THUMB_PAD);
   }
 
   function rebuildBg() {
@@ -342,15 +357,14 @@
       mode = 'play';
       paused = false;
       clearFx();
-      run = new Rules.Run(Math.floor(Math.random() * 1e6), { upgrades: save.up, endless: true });
+      run = new Rules.Run(Math.floor(Math.random() * 1e6), { upgrades: save.up, endless: true, touch: touchMode });
       bankedDistance = 0;
       shownDist = 0;
-      followId = null;
       bestPopped = false;
       setStageLook(0);
       applyBounds();
       run.beginEndless();
-      if (pointer) run.setTarget(pointer.x, pointer.z);
+      if (pointer && !touchMode) run.setTarget(pointer.x, pointer.z);
       const best = save.endlessBest > 0 ? ` ／ 自己ベスト ${fmtDist(save.endlessBest)}` : '';
       addBanner('エンドレスモード', `体幹は3で固定${best}`, 2.3);
       Sound.startBgm(run.stage.bpm, run.stage.root);
@@ -367,10 +381,9 @@
       mode = 'play';
       paused = false;
       clearFx();
-      run = new Rules.Run(Math.floor(Math.random() * 1e6), { upgrades: save.up });
+      run = new Rules.Run(Math.floor(Math.random() * 1e6), { upgrades: save.up, touch: touchMode });
       bankedDistance = 0;
       shownDist = 0;
-      followId = null;
       beginStage(stageIndex);
       showOverlay(null);
     });
@@ -387,11 +400,11 @@
     // コンボはエリアをまたいで続くので、すでに届いている段位で「昇格」と出さない
     lastRank = Rules.comboRankIndex(run.combo);
     bankedDistance = run.distance;
-    if (pointer) run.setTarget(pointer.x, pointer.z);
+    if (pointer && !touchMode) run.setTarget(pointer.x, pointer.z);
     const st = STAGES[i];
     const z = run.zone;
     const place = `${st.name}（${st.label}）`;
-    const prev = advanced ? Rules.zonesFor(i - 1, save.up) : null;
+    const prev = advanced ? Rules.zonesFor(i - 1, save.up, touchMode) : null;
     const sub = prev
       ? `${place} ／ 輪がせまくなった ${prev.parry} → ${z.parry}`
       : `${place} ／ ${st.goal}人ぶっとばすとボスが来ます`;
@@ -409,12 +422,11 @@
   }
 
   // ---- 入力 ----
+  // マウスはカーソルの位置へ動き、クリックで体当たりする。
+  // 指も同じ感覚で遊べるよう、なぞった分だけ動き、タップはその場で体当たりする。どこに指を置いても同じに動く。
   function pointerToFloor(e) {
     const r = stageEl.getBoundingClientRect();
-    const lx = (e.clientX - r.left) / view.scale;
-    let ly = (e.clientY - r.top) / view.scale;
-    if (e.pointerType === 'touch') ly -= TOUCH_OFFSET / view.scale;
-    return { x: lx, z: (ly - view.ft) / SQUASH };
+    return { x: (e.clientX - r.left) / view.scale, z: ((e.clientY - r.top) / view.scale - view.ft) / SQUASH };
   }
 
   function follow(e) {
@@ -422,38 +434,62 @@
     if (mode === 'play' && !paused) run.setTarget(pointer.x, pointer.z);
   }
 
-  canvas.addEventListener('pointermove', (e) => {
-    if (e.pointerType === 'touch') {
-      // 移動に使っていた指が離れたら、画面に残っている指を引き継ぐ
-      if (followId === null) followId = e.pointerId;
-      if (e.pointerId !== followId) return;
+  function touchDown(e) {
+    if (!touchMode) {
+      touchMode = true;
+      run.setTouch(true);
+      applyBounds();
     }
-    follow(e);
+    // 触れた瞬間に輪の中の相手がいれば、すぐはじく。いなければ、タップかなぞる操作かが分かるまで待つ。
+    const hit = run.time >= run.lockUntil && run.bestGap() <= run.zone.parry;
+    if (hit) press();
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, slid: false, hit });
+  }
+
+  function touchMove(e) {
+    const t = touches.get(e.pointerId);
+    if (!t) return;
+    const dx = e.clientX - t.x;
+    const dy = e.clientY - t.y;
+    t.x = e.clientX;
+    t.y = e.clientY;
+    if (Math.hypot(e.clientX - t.startX, e.clientY - t.startY) >= TOUCH_SLIDE) t.slid = true;
+    if (!t.slid || mode !== 'play' || paused) return;
+    // 2 本の指で同時になぞったら、先の指だけで動かす
+    if (slideId === null) slideId = e.pointerId;
+    if (slideId !== e.pointerId) return;
+    const k = TOUCH_GAIN / view.scale;
+    run.setTarget(run.avatar.tx + dx * k, run.avatar.tz + (dy * k) / SQUASH);
+  }
+
+  function touchUp(e) {
+    const t = touches.get(e.pointerId);
+    touches.delete(e.pointerId);
+    if (e.pointerId === slideId) slideId = null;
+    // なぞっただけなら空振りにしない。触れたときに相手がいなかったタップは、ここで体当たりする。
+    if (t && !t.slid && !t.hit && e.type === 'pointerup' && mode === 'play' && !paused) press();
+  }
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse') follow(e);
+    else touchMove(e);
   });
 
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (mode !== 'play' || paused) return;
     e.preventDefault();
-    // 指は 1 本目を移動に使う。触れた瞬間はどの指でも体当たりになる。
-    if (e.pointerType === 'touch') {
-      if (followId === null) {
-        followId = e.pointerId;
-        follow(e);
-      }
-    } else {
+    if (e.pointerType === 'mouse') {
       follow(e);
+      press();
+    } else {
+      touchDown(e);
     }
-    press();
   });
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-
-  const endTouch = (e) => {
-    if (e.pointerId === followId) followId = null;
-  };
-  canvas.addEventListener('pointerup', endTouch);
-  canvas.addEventListener('pointercancel', endTouch);
+  canvas.addEventListener('pointerup', touchUp);
+  canvas.addEventListener('pointercancel', touchUp);
 
   const MOVE_KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], KeyA: [-1, 0], KeyD: [1, 0], KeyW: [0, -1], KeyS: [0, 1] };
 
@@ -1342,7 +1378,7 @@
         Art.popText(c, t.label, labelX, t.y + t.r + 14, 18, { font: FONT.manga, fill: P.ink, stroke: P.paper, alpha: 1 - k * 0.6 });
       }
     }
-    if (mode === 'play' && !paused && pointer && !coarse) drawCursor(P);
+    if (mode === 'play' && !paused && pointer && !touchMode) drawCursor(P);
   }
 
   function drawFloorMarks(P) {
@@ -1658,6 +1694,16 @@
   function drawHud(P) {
     const { W, ft } = view;
     const safeR = 62 / view.scale; // 一時停止ボタン（CSS px で固定）の幅を空ける
+    if (usesThumbPad()) {
+      const y = padTop();
+      c.save();
+      c.globalAlpha = 0.9;
+      c.fillStyle = P.paper;
+      c.fillRect(0, y, W, view.H - y);
+      c.restore();
+      Art.line(c, 0, y, W, y, 3, P.ink);
+      Art.popText(c, 'なぞって動く ／ タップで体当たり', W / 2, y + (view.H - y) * 0.42, 18, { font: FONT.ui, fill: P.ink, stroke: P.paper, lw: 4 });
+    }
     // 背景がにぎやかな場所でも読めるよう、距離と体幹の下に紙を敷く
     const showBest = gameMode === 'endless' && save.endlessBest > 0;
     c.save();
@@ -1722,7 +1768,7 @@
 
     // 最初のエリアだけの操作説明
     if (mode === 'play' && run.stageIndex === 0 && run.stats.flown < 3) {
-      const hint = coarse ? '指で動く ／ おじさんが輪に入った瞬間に、画面にタッチ' : 'マウスで動く ／ おじさんが輪に入った瞬間にクリック';
+      const hint = touchMode ? 'おじさんが輪に入った瞬間にタップ' : 'マウスで動く ／ おじさんが輪に入った瞬間にクリック';
       const size = Art.fitFont(c, hint, FONT.ui, 19, W - 30);
       Art.popText(c, hint, W / 2, view.H - 30, size, { font: FONT.ui, fill: P.ink, stroke: P.floor, lw: 5 });
     }
@@ -1842,8 +1888,8 @@
   function renderShop() {
     const next = shopAfter.nextStage;
     const st = STAGES[next];
-    const base = Rules.zonesFor(next);
-    const z = Rules.zonesFor(next, save.up);
+    const base = Rules.zonesFor(next, Rules.emptyUpgrades(), touchMode);
+    const z = Rules.zonesFor(next, save.up, touchMode);
     $('wallet').textContent = yen(save.yen);
     $('shopDone').textContent = shopAfter.doneLabel;
     const caption = $('shopNext');
@@ -1939,8 +1985,8 @@
     x.stroke();
     const cx = W / 2;
     const cy = H * 0.72;
-    const base = Rules.zonesFor(stageIndex);
-    const z = Rules.zonesFor(stageIndex, save.up);
+    const base = Rules.zonesFor(stageIndex, Rules.emptyUpgrades(), touchMode);
+    const z = Rules.zonesFor(stageIndex, save.up, touchMode);
     // 輪が枠からはみ出さない大きさにする
     const R = Rules.CONTACT + z.parry;
     const k = Math.min(1.55, (H - cy - 8) / (R * SQUASH), (W / 2 - 8) / R);
@@ -2188,13 +2234,19 @@
   }
 
   // リザルトの見出しと、結果に合わせた主人公の絵
-  function fillResultHead(kind, head, body, distance) {
+  function fillResultHead(kind, head, body, distance, brag) {
     resultLook = bgStage;
     $('result').dataset.kind = kind;
     $('resultHead').textContent = head;
     $('resultBody').textContent = body;
     $('resultDist').textContent = fmtDist(distance);
     $('resultCompare').textContent = Rules.compareDistance(distance / 1000);
+    // 結果を X に投稿するリンク。文面は投稿する前に本人が直せる。距離が 0 なら出さない。
+    const title = Rules.rankFor(distance / 1000).title;
+    const text = `${brag}おじさんを ${fmtDist(distance)} ぶっとばした！（称号：${title}）\n#ぶつかりおじさんバスター`;
+    const url = document.querySelector('link[rel="canonical"]').href;
+    $('shareBtn').hidden = distance <= 0;
+    $('shareBtn').href = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
     const cv = $('resultArt');
     const x = cv.getContext('2d');
     x.setTransform(1, 0, 0, 1, 0, 0);
@@ -2222,7 +2274,7 @@
       save.endlessLocal = save.endlessLocal.slice(0, 10);
       writeSave();
     }
-    fillResultHead('endless', 'リザルト', `エンドレスモード ／ ${run.stats.flown}人ぶっとばしました`, run.distance);
+    fillResultHead('endless', 'リザルト', `エンドレス ／ ${run.stats.flown}人ぶっとばしました`, run.distance, 'エンドレスモードで、');
     renderResultRows = () => fillRows([
       ['称号', rank.title],
       ['レベル', `${run.level}`],
@@ -2273,6 +2325,7 @@
       cleared ? 'クリア!' : 'ゲームオーバー',
       cleared ? 'すべてのステージのおじさんをぶっとばしました' : `ステージ${st.line + 1} ${LINES[st.line].name} ／ ${st.name}で力尽きました`,
       run.distance,
+      cleared ? '全ステージクリア！' : `${st.name}まで進んで、`,
     );
     renderResultRows = () => fillRows([
       ['称号', rank.title],
@@ -2432,7 +2485,7 @@
     const calls = Object.values(BOSS_CALLS).map((call) => call('').join('')).join('');
     const display = `${names}${ranks}${calls}${Art.sceneText}に昇格ステージエリアクリア全!体幹が尽きました0123456789kmあと人ボスジャストパリィ+まとめて抜きぶっとばしレベル次まで自己ベスト更新エンドレスモード返した`;
     const manga = `${Object.values(FINALE_CRIES).join('')}${CRIES.join('')}${HIT_JUST.join('')}${HIT_PARRY.join('')}ガキン!カキンドンッスカッピタッん?ボヨンスッ…クドクドナイスショットガシャーンキラーン月太陽空のかなたへまでビタン0123456789m `;
-    const ui = `${names}${calls}${Art.sceneText}${DEX.map((e) => e.phrase + (e.hint || '')).join('')}ぶっとばし距離体幹コンボ図鑑に登録指で動く／マウスでおじさんが輪に入った瞬間に画面にタッチクリック輪がせまくなった力尽きましたバスター手当人ぶっとばすとボスが来ますチッどこ見てんだ気をつけろふん固定自己ベストジャストでないと飛ばない`;
+    const ui = `${names}${calls}${Art.sceneText}${DEX.map((e) => e.phrase + (e.hint || '')).join('')}ぶっとばし距離体幹コンボ図鑑に登録なぞって動く／タップで体当たりマウスでおじさんが輪に入った瞬間にクリック輪がせまくなった力尽きましたバスター手当人ぶっとばすとボスが来ますチッどこ見てんだ気をつけろふん固定自己ベストジャストでないと飛ばない`;
     Promise.all([
       document.fonts.load('20px "Dela Gothic One"', display),
       document.fonts.load('20px "Reggae One"', manga),

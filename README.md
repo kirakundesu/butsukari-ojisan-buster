@@ -60,6 +60,14 @@ npm run deploy
 
 Cloudflare のダッシュボードでは、`kirakun.com` の「SSL/TLS」→「Edge Certificates」→「Always Use HTTPS」をオンにしておきます。
 
+## 共有画像を作り直す
+
+SNS のリンクカードの画像 `public/og.png` は `tools/og.html` から作ります。`tools/og.html` を Chrome で開いて確かめ、次のコマンドで書き出します（Git Bash で、`butsukari-ojisan` フォルダで実行します）。
+
+```bash
+"/c/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --disable-gpu --hide-scrollbars --window-size=1200,630 --virtual-time-budget=8000 --screenshot="$(pwd -W)/public/og.png" "file:///$(pwd -W)/tools/og.html"
+```
+
 ## ランキングの運用
 
 上位の確認:
@@ -87,7 +95,7 @@ npx wrangler d1 execute butsukari-ojisan-buster --remote --command "DELETE FROM 
 - サーバーが遊び始めの時刻を覚え、経過時間に合わない距離を断ります。距離、人数、レベル、コンボの関係も確かめます（`worker/validate.mjs`）。
 - 1 回の遊びにつき、記録は 1 回しか送れません。
 - API は同じ接続元につき 1 分 60 回まで、遊びの開始は 1 分 20 回まで、記録の送信と名前の変更は 1 分 10 回までです。IPv6 は /48 全体でも 1 分 600 回までです。
-- 新しいプレイヤーは 1 日に、同じ接続元から 30 人、IPv6 の /48 全体で 300 人、サイト全体で 1000 人までです。
+- 新しいプレイヤーは 1 日に、同じ接続元から 100 人、IPv6 の /48 全体で 300 人、サイト全体で 3000 人までです。
 - 名前は使える文字を絞り、見えない文字、URL、禁止語、他の人と同じ名前を断ります。
 - 上位の一覧はキャッシュし、データは毎日 3:30 に掃除します（上位 3000 人より下で 30 日以上更新のない記録と、古い一時データ）。
 - プレイヤーの識別子は端末に保存した乱数で、サーバーにはハッシュだけを保存します。接続元はその日かぎりのハッシュで数え、翌日には消します。

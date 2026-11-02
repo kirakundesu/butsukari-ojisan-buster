@@ -14,9 +14,9 @@ export const LIMITS = {
   grace: 3000,
   perLevel: 10,
   bossEvery: 5,
-  newPlayersPerDay: 30, // 同じ接続元から 1 日に増やせるプレイヤーの数
+  newPlayersPerDay: 100, // 同じ接続元から 1 日に増やせるプレイヤーの数。携帯回線は 1 つの接続元を大勢で共有する
   newPlayersPerNetwork: 300, // IPv6 の /48 全体で 1 日に増やせる数。/64 を変えて増やされないように
-  newPlayersPerDayAll: 1000, // サイト全体で 1 日に増やせる数
+  newPlayersPerDayAll: 3000, // サイト全体で 1 日に増やせる数。D1 の無料枠の書き込みを使い切らない目安
   keepScores: 3000, // ランキングに残す人数。これより下で、しばらく更新のない行を毎日消す
   keepStaleMs: 30 * 24 * 60 * 60 * 1000,
   keepRunsMs: 24 * 60 * 60 * 1000, // 遊びの開始記録を残す時間。長く放っておいた遊びも送れるように

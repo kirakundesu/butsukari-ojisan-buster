@@ -151,8 +151,8 @@ test('長く放っておいた遊びの記録も受け取るが、距離の上�
 test('本物のプレイの記録は、どの時点で終えても断らない', () => {
   const STEP = 1 / 60;
   for (const seed of [1, 2, 3, 4]) {
-    for (const up of [{}, { kata: 5, hansha: 5, ashi: 5 }]) {
-      const run = new Rules.Run(seed, { bounds: { x0: 0, x1: 960, d: 560 }, endless: true, upgrades: up });
+    for (const [up, touch] of [[{}, false], [{ kata: 5, hansha: 5, ashi: 5 }, false], [{}, true], [{ kata: 5, hansha: 5, ashi: 5 }, true]]) {
+      const run = new Rules.Run(seed, { bounds: { x0: 0, x1: 960, d: 560 }, endless: true, upgrades: up, touch });
       run.beginEndless();
       let t = 0;
       let next = 3;

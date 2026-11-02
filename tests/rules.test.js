@@ -61,6 +61,37 @@ test('強化すると判定の範囲が広がる', () => {
   assert.ok(kata.parry >= Rules.zonesFor(0).parry, '最大まで鍛えると最終駅でも最初の駅の広さに届く');
 });
 
+test('指の操作では輪と猶予が広がり、途中で切り替えてもすぐ効く', () => {
+  const mouse = Rules.zonesFor(5);
+  const touch = Rules.zonesFor(5, undefined, true);
+  assert.equal(touch.parry, mouse.parry + Rules.TOUCH.parry);
+  assert.equal(touch.just, mouse.just + Rules.TOUCH.just);
+  const run = new Rules.Run(1, { bounds: BOUNDS });
+  run.beginStage(5);
+  assert.equal(run.zone.parry, mouse.parry);
+  assert.equal(run.lateGrace, Rules.LATE_GRACE);
+  run.setTouch(true);
+  assert.equal(run.zone.parry, touch.parry);
+  assert.equal(run.lateGrace, Rules.LATE_GRACE + Rules.TOUCH.late);
+  run.beginStage(6);
+  assert.equal(run.zone.parry, Rules.zonesFor(6, undefined, true).parry, '次のエリアでも補正が続く');
+  const endless = new Rules.Run(1, { bounds: BOUNDS, endless: true, touch: true });
+  endless.beginEndless();
+  assert.equal(endless.zone.parry, Rules.endlessSpec(0).parry + Rules.TOUCH.parry);
+});
+
+test('指の操作では触れてからの猶予のぶんだけ遅くてもはじける', () => {
+  const late = (touch) => {
+    const { run, o } = setupDash('normal', 0);
+    if (touch) run.setTouch(true);
+    advanceUntil(run, () => o.state === 'contact');
+    for (let t = 0; t < Rules.LATE_GRACE + 0.02; t += STEP) run.update(STEP);
+    return o.state;
+  };
+  assert.equal(late(false), 'stumble', 'マウスの猶予では間に合わない');
+  assert.equal(late(true), 'contact', '指の猶予ならまだ間に合う');
+});
+
 test('ジャストの範囲はパリィの範囲を超えない', () => {
   const z = Rules.zonesFor(3, { kata: 0, hansha: 5 });
   assert.ok(z.just <= z.parry);

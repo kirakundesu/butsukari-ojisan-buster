@@ -1,0 +1,109 @@
+<!doctype html>
+<!-- public/og.png（SNS のリンクカード）の元。ゲームと同じ部品で 1200x630 に描く。作り直し方は README を参照。 -->
+<meta charset="utf-8">
+<title>共有画像</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Reggae+One&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<style>
+  html, body { margin: 0; background: #ffd200; }
+  canvas { display: block; }
+</style>
+<canvas id="og" width="1200" height="630"></canvas>
+<script src="../public/js/rules.js"></script>
+<script src="../public/js/art.js"></script>
+<script>
+  'use strict';
+  (async () => {
+    const TITLE = 'ぶつかりおじさんバスターおじさん全5ステージ32種ランキング';
+    const TAGLINE = '突っ込んでくるおじさんを、体当たりでぶっとばせ。';
+    await Promise.all([
+      document.fonts.load('100px "Dela Gothic One"', TITLE),
+      document.fonts.load('100px "Reggae One"', 'ドゴォッ!!キラーン'),
+      document.fonts.load('700 30px "Zen Kaku Gothic New"', TAGLINE + TITLE),
+    ]);
+
+    const { FONT } = Art;
+    const INK = '#10184A';
+    const SPOT = '#FFD200';
+    const W = 1200;
+    const H = 630;
+    const P = Art.PALETTES[0];
+    const c = document.getElementById('og').getContext('2d');
+    const view = { W, H, ft: 236, depth: 600, portrait: false };
+    const bg = Art.buildBackground(P, { seed: 3, theme: 'platform', sky: 'day', name: '', kana: '', prev: null, next: null }, view, 1);
+    c.drawImage(bg.back, 0, 0);
+    c.drawImage(bg.front, 0, 0);
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+
+    // 飛んでいくおじさんにかかる床の文字を消す
+    c.fillStyle = P.floor;
+    c.fillRect(920, 262, 84, 30);
+
+    // ぶつかった瞬間
+    const hitX = 868;
+    const hitY = 352;
+    c.globalAlpha = 0.5;
+    Art.speedLines(c, INK, hitX, hitY, W, H, 56, 190, 11);
+    c.globalAlpha = 1;
+    Art.zoneRing(c, P, 690, 560, 210, 108, Rules.SQUASH, { hot: true });
+    Art.drawOjisan(c, P, { x: 1124, y: 622, dir: -1, s: 0.98, type: 'otaku', pose: 'charge', phase: 0.3 });
+    Art.burst(c, P, hitX, hitY, 84, 12, 0.3);
+    Art.drawPlayer(c, P, { x: 690, y: 566, dir: 1, s: 1.5, pose: 'tackle', time: 1.2, mass: 2 });
+    Art.drawOjisan(c, P, { x: 1016, y: 372, dir: -1, s: 1.22, type: 'normal', pose: 'fly', phase: 0.3, rot: 1.05, face: 'ko' });
+    Art.popText(c, 'ドゴォッ!!', 830, 118, 84, { font: FONT.manga, fill: INK, stroke: P.paper, rot: -0.06, lw: 18 });
+    Art.star(c, P, 1146, 66, 38, 0.3);
+    Art.star(c, P, 1096, 108, 14, 0);
+
+    // 題字の紙面
+    c.beginPath();
+    c.moveTo(0, 0);
+    c.lineTo(600, 0);
+    c.lineTo(500, H);
+    c.lineTo(0, H);
+    c.closePath();
+    c.fillStyle = SPOT;
+    c.fill();
+    c.save();
+    c.clip();
+    c.fillStyle = 'rgba(16, 24, 74, 0.1)';
+    for (let y = 0; y < H; y += 22) {
+      for (let x = 0; x < 620; x += 22) {
+        c.beginPath();
+        c.arc(x, y, 5.6, 0, Art.TAU);
+        c.fill();
+      }
+    }
+    c.restore();
+
+    c.textBaseline = 'alphabetic';
+    c.textAlign = 'left';
+    c.fillStyle = INK;
+    c.font = `108px ${FONT.display}`;
+    c.fillText('ぶつかり', 34, 122);
+    c.fillText('おじさん', 34, 238);
+    c.font = `126px ${FONT.display}`;
+    c.fillStyle = INK;
+    c.fillText('バスター', 38, 376);
+    c.strokeStyle = INK;
+    c.lineWidth = 8;
+    c.strokeText('バスター', 30, 368);
+    c.fillStyle = SPOT;
+    c.fillText('バスター', 30, 368);
+
+    c.fillStyle = INK;
+    c.font = `700 34px ${FONT.ui}`;
+    c.fillText('突っ込んでくるおじさんを、', 36, 438);
+    c.fillText('体当たりでぶっとばせ。', 36, 484);
+
+    let x = 36;
+    c.font = `700 25px ${FONT.ui}`;
+    for (const chip of ['全5ステージ', 'おじさん32種', 'ランキング']) {
+      const w = c.measureText(chip).width + 22;
+      c.fillStyle = INK;
+      c.fillRect(x, 528, w, 50);
+      c.fillStyle = SPOT;
+      c.fillText(chip, x + 11, 562);
+      x += w + 8;
+    }
+  })();
+</script>

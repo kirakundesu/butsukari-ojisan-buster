@@ -9,6 +9,8 @@ const Rules = (() => {
   const BASE_HP = 3;
   const SHOCK_RADIUS = 200; // ジャストの衝撃が届く距離
   const PASSBY_OFFSET = 78; // 二度見おじさんが横を通り過ぎるときの間隔
+  // 指の操作の補正。タッチは入力から画面に出るまでが遅く、マウスより狙いがぶれるので、輪と猶予を広げる。
+  const TOUCH = { parry: 24, just: 14, late: 0.055 };
   const RETREAT_GAP = 120; // よろけたあとに取り直す間合い
   const RETREAT_SPEED = 420;
   // 空振りの硬直。連打が得にならないよう、続けて空振りするほど長くなる。
@@ -226,15 +228,15 @@ const Rules = (() => {
     return { kata: 0, hansha: 0, taikan: 0, ashi: 0 };
   }
 
-  function zonesFromBase(base, up = emptyUpgrades()) {
-    const parry = base.parry + (up.kata || 0) * 14;
-    const just = base.just + (up.hansha || 0) * 6;
+  function zonesFromBase(base, up = emptyUpgrades(), touch = false) {
+    const parry = base.parry + (up.kata || 0) * 14 + (touch ? TOUCH.parry : 0);
+    const just = base.just + (up.hansha || 0) * 6 + (touch ? TOUCH.just : 0);
     // 内の輪が外の輪に届いたら外の輪も広げる。終盤でも反射神経の強化が無駄にならないように。
     return { parry: Math.max(parry, just), just };
   }
 
-  function zonesFor(stageIndex, up = emptyUpgrades()) {
-    return zonesFromBase(STAGES[stageIndex], up);
+  function zonesFor(stageIndex, up = emptyUpgrades(), touch = false) {
+    return zonesFromBase(STAGES[stageIndex], up, touch);
   }
 
   // エンドレスの難しさ。レベルが上がるほど輪が狭く、おじさんが速く多くなる。
@@ -311,6 +313,7 @@ const Rules = (() => {
       this.rng = mulberry32(seed);
       this.up = { ...emptyUpgrades(), ...(opts.upgrades || {}) };
       this.demo = !!opts.demo;
+      this.touch = !!opts.touch;
       this.immortal = !!opts.immortal || this.demo;
       this.bounds = opts.bounds || { x0: 0, x1: 960, d: 560 };
       this.spawnSides = opts.spawnSides || ['left', 'right', 'bottom'];
@@ -339,7 +342,17 @@ const Rules = (() => {
       this.lockUntil = -Infinity;
       this.lockLength = 0;
       this.whiffStreak = 0;
-      this.zone = zonesFor(0, this.up);
+      this.zone = zonesFor(0, this.up, this.touch);
+    }
+
+    // 遊んでいる途中で指の操作に切り替わったときも、すぐ補正を効かせる
+    setTouch(touch) {
+      this.touch = touch;
+      this.zone = zonesFromBase(this.stage, this.up, touch);
+    }
+
+    get lateGrace() {
+      return LATE_GRACE + (this.touch ? TOUCH.late : 0);
     }
 
     get stage() {
@@ -386,7 +399,7 @@ const Rules = (() => {
 
     beginStage(index) {
       this.stageIndex = index;
-      this.zone = zonesFor(index, this.up);
+      this.zone = zonesFor(index, this.up, this.touch);
       this.hp = this.hpMax;
       this.ojisan = [];
       this.time = 0;
@@ -409,7 +422,7 @@ const Rules = (() => {
       this.level = 0;
       this.spec = endlessSpec(0);
       this.beginStage(0);
-      this.zone = zonesFromBase(this.spec, this.up);
+      this.zone = zonesFromBase(this.spec, this.up, this.touch);
     }
 
     callBoss(out) {
@@ -543,7 +556,7 @@ const Rules = (() => {
             if (level > this.level) {
               this.level = level;
               this.spec = endlessSpec(level);
-              this.zone = zonesFromBase(this.spec, this.up);
+              this.zone = zonesFromBase(this.spec, this.up, this.touch);
               out.push({ kind: 'levelUp', level, zone: this.zone });
               if (level % ENDLESS.bossEvery === 0) {
                 this.callBoss(out);
@@ -796,7 +809,7 @@ const Rules = (() => {
             break;
           }
           o.graceUsed += dt;
-          if (o.graceUsed > LATE_GRACE) this.hurt(o, out);
+          if (o.graceUsed > this.lateGrace) this.hurt(o, out);
           break;
         case 'stumble':
           o.x += o.dx * o.speed * 0.35 * Math.max(o.left, 0) * dt;
@@ -899,7 +912,7 @@ const Rules = (() => {
       for (const o of this.ojisan) {
         if (o.state === 'contact') {
           // ジャストでしか飛ばない相手は、触れてからの猶予を少し長くする
-          const late = TYPES[o.type].justOnly ? JUST_LATE * 2 : JUST_LATE;
+          const late = (TYPES[o.type].justOnly ? JUST_LATE * 2 : JUST_LATE) + (this.touch ? TOUCH.late : 0);
           targets.push({ o, grade: o.graceUsed <= late ? 'just' : 'parry' });
         } else if (o.state === 'dash') {
           const gap = this.gapOf(o);
@@ -1041,7 +1054,7 @@ const Rules = (() => {
   }
 
   return {
-    SQUASH, CONTACT, LATE_GRACE, JUST_LATE, BASE_HP, SHOCK_RADIUS, WHIFF, TYPES, LINES, STAGES, UPGRADES, COMBO_RANKS, DEX, RANKS, ENDLESS,
+    SQUASH, CONTACT, LATE_GRACE, JUST_LATE, TOUCH, BASE_HP, SHOCK_RADIUS, WHIFF, TYPES, LINES, STAGES, UPGRADES, COMBO_RANKS, DEX, RANKS, ENDLESS,
     compareDistance, emptyUpgrades, zonesFor, zonesFromBase, endlessSpec, maxHp, moveSpeed, whiffLock, upgradeCost, comboMult, comboRankIndex, launchDistance, rankFor, contactOf, Run,
   };
 })();
