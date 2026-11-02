@@ -2188,13 +2188,19 @@
   }
 
   // リザルトの見出しと、結果に合わせた主人公の絵
-  function fillResultHead(kind, head, body, distance) {
+  function fillResultHead(kind, head, body, distance, brag) {
     resultLook = bgStage;
     $('result').dataset.kind = kind;
     $('resultHead').textContent = head;
     $('resultBody').textContent = body;
     $('resultDist').textContent = fmtDist(distance);
     $('resultCompare').textContent = Rules.compareDistance(distance / 1000);
+    // 結果を X に投稿するリンク。文面は投稿する前に本人が直せる。距離が 0 なら出さない。
+    const title = Rules.rankFor(distance / 1000).title;
+    const text = `${brag}おじさんを ${fmtDist(distance)} ぶっとばした！（称号：${title}）\n#ぶつかりおじさんバスター`;
+    const url = document.querySelector('link[rel="canonical"]').href;
+    $('shareBtn').hidden = distance <= 0;
+    $('shareBtn').href = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
     const cv = $('resultArt');
     const x = cv.getContext('2d');
     x.setTransform(1, 0, 0, 1, 0, 0);
@@ -2222,7 +2228,7 @@
       save.endlessLocal = save.endlessLocal.slice(0, 10);
       writeSave();
     }
-    fillResultHead('endless', 'リザルト', `エンドレスモード ／ ${run.stats.flown}人ぶっとばしました`, run.distance);
+    fillResultHead('endless', 'リザルト', `エンドレス ／ ${run.stats.flown}人ぶっとばしました`, run.distance, 'エンドレスモードで、');
     renderResultRows = () => fillRows([
       ['称号', rank.title],
       ['レベル', `${run.level}`],
@@ -2273,6 +2279,7 @@
       cleared ? 'クリア!' : 'ゲームオーバー',
       cleared ? 'すべてのステージのおじさんをぶっとばしました' : `ステージ${st.line + 1} ${LINES[st.line].name} ／ ${st.name}で力尽きました`,
       run.distance,
+      cleared ? '全ステージクリア！' : `${st.name}まで進んで、`,
     );
     renderResultRows = () => fillRows([
       ['称号', rank.title],

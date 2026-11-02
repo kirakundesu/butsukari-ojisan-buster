@@ -634,6 +634,10 @@ const Guide = (() => {
       }
       grid.appendChild(list);
     }
+    const note = document.createElement('p');
+    note.className = 'guide-note';
+    note.textContent = 'このゲームはフィクションで、実在の人物や団体とは関係ありません。現実では体当たりせず、困ったときは駅員や警察に相談してください。';
+    grid.appendChild(note);
   }
 
   // イラストの文字。読み込み前に描くと別の書体になるので、先に読み込む。
