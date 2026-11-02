@@ -2241,12 +2241,13 @@
     $('resultBody').textContent = body;
     $('resultDist').textContent = fmtDist(distance);
     $('resultCompare').textContent = Rules.compareDistance(distance / 1000);
-    // 結果を X に投稿するリンク。文面は投稿する前に本人が直せる。距離が 0 なら出さない。
+    // 結果を X に投稿するボタン。文面は投稿する前に本人が直せる。距離が 0 なら出さない。
+    // 広告ブロッカーは共有ボタンらしい名前と X の投稿 URL へのリンクを隠すので、名前を変え、押すまで URL を持たせない。
     const title = Rules.rankFor(distance / 1000).title;
     const text = `${brag}おじさんを ${fmtDist(distance)} ぶっとばした！（称号：${title}）\n#ぶつかりおじさんバスター`;
     const url = document.querySelector('link[rel="canonical"]').href;
-    $('shareBtn').hidden = distance <= 0;
-    $('shareBtn').href = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+    $('bragBtn').hidden = distance <= 0;
+    $('bragBtn').onclick = () => window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank', 'noopener');
     const cv = $('resultArt');
     const x = cv.getContext('2d');
     x.setTransform(1, 0, 0, 1, 0, 0);

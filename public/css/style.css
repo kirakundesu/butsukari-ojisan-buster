@@ -258,7 +258,7 @@ h1 .buster {
 .result-rows dt { font-weight: 500; }
 .result-rows dd { margin: 0; font-variant-numeric: tabular-nums; }
 .result-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
-.share-btn { display: block; text-align: center; text-decoration: none; background: var(--spot); }
+.brag-btn { background: var(--spot); }
 
 /* ---- 強化と図鑑 ---- */
 .sheet {
@@ -518,8 +518,7 @@ h1 .buster {
   .result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 0; }
   .result-actions .btn-row { grid-column: 1 / -1; }
   #retryBtn { font-size: 15px; }
-  #retryBtn:has(+ .share-btn[hidden]) { grid-column: 1 / -1; }
-  .share-btn { display: flex; align-items: center; justify-content: center; }
+  #retryBtn:has(+ .brag-btn[hidden]) { grid-column: 1 / -1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
